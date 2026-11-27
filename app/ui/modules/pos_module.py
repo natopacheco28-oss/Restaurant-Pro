@@ -163,8 +163,10 @@ class PosModule(QWidget):
         self._search_text = text.strip()
         self._reload_products()
 
-    def _on_category_change(self, key: str) -> None:
-        self._category_id = None if key == "all" else int(key)
+    def _on_category_change(self, key) -> None:
+        # La clave llega como str desde el segmented; si una señal Qt entregara
+        # otro tipo (p. ej. bool) se trata como "Todo" en lugar de fallar.
+        self._category_id = None if key == "all" or not str(key).isdigit() else int(key)
         self._reload_products()
 
     def _reload_products(self) -> None:
@@ -406,8 +408,9 @@ class CartPanel(CardWidget):
         checkout_button.clicked.connect(self.pos._checkout)
         layout.addWidget(checkout_button)
 
-    def _on_order_type(self, key: str) -> None:
-        self.pos.order_type = key
+    def _on_order_type(self, key) -> None:
+        # Clave inválida (p. ej. un bool de una señal Qt) → tipo por defecto.
+        self.pos.order_type = key if key in ORDER_TYPES else next(iter(ORDER_TYPES))
 
     def _clear(self) -> None:
         if not self.pos.cart:
