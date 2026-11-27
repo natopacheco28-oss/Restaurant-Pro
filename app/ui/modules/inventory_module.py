@@ -124,9 +124,13 @@ class InventoryModule(QWidget):
             self._stack.addWidget(page)
         root.addWidget(self._stack, 1)
 
-    def _switch(self, key: str) -> None:
-        index = [k for k, _ in self.TABS].index(key)
-        self._stack.setCurrentIndex(index)
+    def _switch(self, key) -> None:
+        # Señales Qt pueden entregar un valor inesperado (p. ej. un bool):
+        # si la clave no es válida se regresa a la primera pestaña.
+        keys = [k for k, _ in self.TABS]
+        if key not in keys:
+            key = keys[0]
+        self._stack.setCurrentIndex(keys.index(key))
         page = self._stack.currentWidget()
         if hasattr(page, "reload"):
             page.reload()

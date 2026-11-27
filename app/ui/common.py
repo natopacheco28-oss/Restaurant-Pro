@@ -345,13 +345,19 @@ def make_segmented(items: list[tuple[str, str]], current: str,
     """Crea un SegmentedWidget (o ComboBox de respaldo) con los ítems dados.
 
     `items`: [(clave, etiqueta), …] · `on_change(clave)` al cambiar.
+
+    Nota: qfluentwidgets conecta el `onClick` a una señal que emite un bool
+    (`itemClicked(bool)`); por eso el lambda descarta el primer argumento
+    (`_=False`) y fija la clave real como valor por defecto. Si el bool se
+    dejara caer en `k`, el handler recibiría `True` en lugar de la clave.
     """
     from qfluentwidgets import SegmentedWidget
 
     try:
         seg = SegmentedWidget(parent)
         for key, label in items:
-            seg.addItem(routeKey=key, text=label, onClick=lambda k=key: on_change(k))
+            seg.addItem(routeKey=key, text=label,
+                        onClick=lambda _=False, k=key: on_change(k))
         seg.setCurrentItem(current)
         return seg
     except (AttributeError, TypeError):
@@ -361,7 +367,8 @@ def make_segmented(items: list[tuple[str, str]], current: str,
         combo = ComboBox(parent)
         for _, label in items:
             combo.addItem(label)
-        combo.setCurrentIndex(max(0, [k for k, _ in items].index(current)))
+        keys = [k for k, _ in items]
+        combo.setCurrentIndex(keys.index(current) if current in keys else 0)
         combo.currentIndexChanged.connect(
             lambda idx: on_change(items[idx][0])
         )
