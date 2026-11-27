@@ -120,9 +120,78 @@ CREATE INDEX IF NOT EXISTS idx_movements_ing      ON movements(ingredient_id);
 CREATE INDEX IF NOT EXISTS idx_movements_datetime ON movements(datetime);
 """
 
+# --- v2: almacén avanzado (kardex completo, lotes con caducidad,
+#     stock ideal, listas de compras y alertas atendidas/pospuestas) -----
+SCHEMA_V2 = """
+-- Lotes de inventario: cada entrada crea un lote con cantidad restante,
+-- número de lote, fecha de caducidad (opcional) y costo.
+CREATE TABLE lots (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ingredient_id   INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    lot_number      TEXT    NOT NULL DEFAULT '',
+    expiration_date TEXT,                     -- 'YYYY-MM-DD' (NULL = sin caducidad)
+    quantity        REAL    NOT NULL DEFAULT 0,
+    entry_date      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    unit_cost       REAL    NOT NULL DEFAULT 0,
+    supplier        TEXT,
+    movement_id     INTEGER REFERENCES movements(id) ON DELETE SET NULL
+);
+
+-- Kardex extendido: lote, proveedor, usuario y motivo estructurado.
+-- (Las filas existentes conservan sus valores en NULL.)
+ALTER TABLE movements ADD COLUMN lot_id INTEGER REFERENCES lots(id) ON DELETE SET NULL;
+ALTER TABLE movements ADD COLUMN supplier TEXT;
+ALTER TABLE movements ADD COLUMN user TEXT;
+ALTER TABLE movements ADD COLUMN reason TEXT;
+
+-- Insumos: stock ideal/reposición, días de aviso de caducidad propios
+-- (0 = usa el valor global de Ajustes) y proveedor habitual.
+ALTER TABLE ingredients ADD COLUMN ideal_stock REAL NOT NULL DEFAULT 0;
+ALTER TABLE ingredients ADD COLUMN warning_days INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ingredients ADD COLUMN supplier TEXT NOT NULL DEFAULT '';
+
+-- Listas de compras sugeridas con estado (pendiente | comprada)
+CREATE TABLE shopping_lists (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    datetime   TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    status     TEXT NOT NULL DEFAULT 'pendiente',
+    note       TEXT
+);
+
+CREATE TABLE shopping_list_items (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    list_id        INTEGER NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
+    ingredient_id  INTEGER REFERENCES ingredients(id) ON DELETE SET NULL,
+    name           TEXT    NOT NULL,
+    quantity       REAL    NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    unit           TEXT    NOT NULL DEFAULT 'pza',
+    estimated_cost REAL    NOT NULL DEFAULT 0,
+    supplier       TEXT,
+    checked        INTEGER NOT NULL DEFAULT 1
+);
+
+-- Alertas atendidas o pospuestas (no vuelven a notificar mientras la
+-- condición no cambie: mismo stock, mismos días restantes, etc.)
+CREATE TABLE alert_dismissals (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    alert_key          TEXT NOT NULL UNIQUE,
+    kind               TEXT NOT NULL,
+    condition_snapshot TEXT,
+    dismissed_at       TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    snooze_until       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_lots_ingredient ON lots(ingredient_id);
+CREATE INDEX IF NOT EXISTS idx_lots_expiration ON lots(expiration_date);
+CREATE INDEX IF NOT EXISTS idx_movements_lot   ON movements(lot_id);
+CREATE INDEX IF NOT EXISTS idx_movements_type  ON movements(type);
+CREATE INDEX IF NOT EXISTS idx_slist_items     ON shopping_list_items(list_id);
+"""
+
 # Cada migración: {versión: [sentencias SQL]} — solo añadir versiones nuevas
 MIGRATIONS: dict[int, list[str]] = {
     1: [SCHEMA_V1],
+    2: [SCHEMA_V2],
 }
 
 

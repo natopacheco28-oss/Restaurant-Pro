@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Optional
 
 from app.core.database import Database
+from app.core.services.inventory_service import consume_for_sale
 from app.core.services.validators import ValidationError
 from app.signals import SignalBus
 
@@ -206,12 +207,14 @@ class SalesService:
                         round(float(item["unit_price"]) * float(item["quantity"]), 2),
                     ),
                 )
-                # Descuento de inventario: solo si el producto tiene receta ligada
+                # Descuento de inventario por receta: PEPS/FEFO con lotes y
+                # registro en el kardex (consumo por venta), en la misma
+                # transacción atómica del cobro.
                 product_id = item.get("product_id")
                 if product_id:
                     recipe = self.db.query(
                         """
-                        SELECT r.ingredient_id, r.quantity, i.name, i.min_stock
+                        SELECT r.ingredient_id, r.quantity
                           FROM recipes r JOIN ingredients i ON i.id = r.ingredient_id
                          WHERE r.product_id = ?
                         """,
@@ -219,26 +222,11 @@ class SalesService:
                     )
                     for row in recipe:
                         consumed = row["quantity"] * float(item["quantity"])
-                        self.db.execute(
-                            "UPDATE ingredients SET stock = stock - ?,"
-                            " updated_at = datetime('now','localtime') WHERE id = ?",
-                            (round(consumed, 3), row["ingredient_id"]),
+                        result = consume_for_sale(
+                            self.db, row["ingredient_id"], consumed, sale_id, folio
                         )
-                        after = self.db.one(
-                            "SELECT stock FROM ingredients WHERE id = ?",
-                            (row["ingredient_id"],),
-                        )["stock"]
-                        self.db.execute(
-                            """
-                            INSERT INTO movements
-                                (ingredient_id, type, quantity, stock_after, note, sale_id)
-                            VALUES (?, 'venta', ?, ?, ?, ?)
-                            """,
-                            (row["ingredient_id"], -round(consumed, 3), after,
-                             f"Venta folio #{folio:06d}", sale_id),
-                        )
-                        if row["min_stock"] and after <= row["min_stock"]:
-                            low_stock.append(row["name"])
+                        if result["is_low"]:
+                            low_stock.append(result["ingredient_name"])
 
         self.bus.salesChanged.emit()
         self.bus.ingredientsChanged.emit()

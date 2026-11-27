@@ -35,9 +35,11 @@ from app.core.paths import (
     security_file,
 )
 from app.core.security import SecurityManager
+from app.core.services.alerts_service import AlertsService
 from app.core.services.catalog_service import CatalogService
 from app.core.services.inventory_service import InventoryService
 from app.core.services.sales_service import SalesService
+from app.core.services.shopping_service import ShoppingService
 from app.core.services.stats_service import StatsService
 from app.core.settings import Settings
 from app.context import init_context
@@ -114,6 +116,11 @@ def build_context() -> None:
     )
     printer = PrinterManager(settings)
 
+    # Almacén: inventario → listas de compras y alertas dependen de él
+    inventory = InventoryService(db, bus, settings)
+    shopping = ShoppingService(db, bus, inventory)
+    alerts = AlertsService(db, inventory, settings)
+
     init_context(
         settings=settings,
         db=db,
@@ -122,7 +129,9 @@ def build_context() -> None:
         backup=backup,
         printer=printer,
         catalog=CatalogService(db, bus),
-        inventory=InventoryService(db, bus),
+        inventory=inventory,
+        shopping=shopping,
+        alerts=alerts,
         sales=SalesService(db, bus, settings),
         stats=StatsService(db, settings),
     )

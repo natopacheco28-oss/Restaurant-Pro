@@ -50,7 +50,7 @@ except ImportError:  # pragma: no cover
 from qfluentwidgets import isDarkTheme, qconfig
 
 from app.printing.ticket_builder import money
-from app.ui.common import KPICard, currency_of, fi
+from app.ui.common import COLOR_ERROR, COLOR_WARN, KPICard, currency_of, fi
 
 # Presets del filtro de fechas
 PRESETS = ["Hoy", "Ayer", "Últimos 7 días", "Esta semana", "Este mes",
@@ -141,7 +141,7 @@ class StatsModule(QWidget):
         filter_row.addWidget(export_excel)
         root.addWidget(filter_card)
 
-        # ---------------- KPIs ----------------
+        # ---------------- KPIs de ventas ----------------
         kpi_row = QHBoxLayout()
         kpi_row.setSpacing(12)
         self._kpi_total = KPICard("Ventas totales")
@@ -153,6 +153,19 @@ class StatsModule(QWidget):
                      self._kpi_items, self._kpi_tips):
             kpi_row.addWidget(card, 1)
         root.addLayout(kpi_row)
+
+        # ---------------- KPIs de almacén ----------------
+        warehouse_row = QHBoxLayout()
+        warehouse_row.setSpacing(12)
+        self._w_value = KPICard("Valor del inventario")
+        self._w_low = KPICard("Insumos en stock bajo")
+        self._w_expiring = KPICard("Por caducar / vencidos")
+        self._w_merma = KPICard("Merma del periodo")
+        self._w_stale = KPICard("Valor inmovilizado")
+        for card in (self._w_value, self._w_low, self._w_expiring,
+                     self._w_merma, self._w_stale):
+            warehouse_row.addWidget(card, 1)
+        root.addLayout(warehouse_row)
 
         # ---------------- Gráficas ----------------
         charts_grid = QGridLayout()
@@ -180,6 +193,29 @@ class StatsModule(QWidget):
             self._chart_layouts[key] = card_layout
             charts_grid.addWidget(card, row, col)
         root.addLayout(charts_grid, 1)
+
+        # ---------------- Gráficas de almacén ----------------
+        warehouse_grid = QGridLayout()
+        warehouse_grid.setSpacing(12)
+        w_positions = {
+            "w_merma": (0, 0), "w_consumo": (0, 1), "w_movs": (0, 2),
+        }
+        w_titles = {
+            "w_merma": "Merma por motivo",
+            "w_consumo": "Consumo por insumo (ventas)",
+            "w_movs": "Movimientos del kardex por día",
+        }
+        for key, (row, col) in w_positions.items():
+            card = SimpleCardWidget()
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(12, 10, 12, 12)
+            card_layout.addWidget(TitleLabel(w_titles[key]))
+            placeholder = BodyLabel("Sin datos en el periodo")
+            card_layout.addWidget(placeholder, 1)
+            self._charts[key] = placeholder
+            self._chart_layouts[key] = card_layout
+            warehouse_grid.addWidget(card, row, col)
+        root.addLayout(warehouse_grid, 1)
 
     def _make_date_picker(self):
         """CalendarPicker de qfluentwidgets; QDateEdit de respaldo."""
@@ -227,9 +263,11 @@ class StatsModule(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
-        """Recalcula KPIs y gráficas del periodo seleccionado."""
+        """Recalcula KPIs y gráficas (ventas y almacén) del periodo."""
         start, end = self._current_range()
         self._summary = self.ctx.stats.summary(start.isoformat(), end.isoformat())
+        self._warehouse = self.ctx.stats.warehouse_summary(
+            start.isoformat(), end.isoformat())
         kpi = self._summary["kpi"]
         currency = currency_of(self.ctx.settings)
 
@@ -239,7 +277,26 @@ class StatsModule(QWidget):
         self._kpi_items.set_value(str(kpi["items_sold"]))
         self._kpi_tips.set_value(money(kpi["tips"], currency))
 
+        self._render_warehouse_kpis(currency)
         self._render_charts()
+
+    def _render_warehouse_kpis(self, currency: str) -> None:
+        warehouse = getattr(self, "_warehouse", None) or {}
+        self._w_value.set_value(money(warehouse.get("inventory_value", 0), currency))
+        self._w_value.set_value_color(None)
+        low = warehouse.get("low_count", 0)
+        self._w_low.set_value(str(low))
+        self._w_low.set_value_color(COLOR_WARN if low else None)
+        expired = warehouse.get("expired_count", 0)
+        expiring = warehouse.get("expiring_count", 0)
+        self._w_expiring.set_value(f"{expiring} / {expired}")
+        self._w_expiring.set_value_color(
+            COLOR_ERROR if expired else COLOR_WARN if expiring else None)
+        self._w_merma.set_value(
+            money(warehouse.get("merma_value", 0), currency))
+        self._w_merma.set_value_color(COLOR_WARN if warehouse.get("merma_value") else None)
+        self._w_stale.set_value(money(warehouse.get("stale_value", 0), currency))
+        self._w_stale.set_value_color(COLOR_WARN if warehouse.get("stale_value") else None)
 
     # ==================================================================
     # Gráficas
@@ -253,6 +310,68 @@ class StatsModule(QWidget):
         self._render_hour_chart()
         self._render_method_chart()
         self._render_top_chart()
+        self._render_warehouse_charts()
+
+    def _render_warehouse_charts(self) -> None:
+        """Merma por motivo (pastel), consumo por insumo y movimientos/día."""
+        warehouse = getattr(self, "_warehouse", None) or {}
+
+        # Merma por motivo → pastel
+        buckets = warehouse.get("merma_by_reason") or []
+        if buckets:
+            view = self._make_pie_chart(buckets)
+            self._replace_holder("w_merma", view)
+        else:
+            self._reset_holder("w_merma", "Sin merma en el periodo")
+
+        # Consumo por insumo → barras por cantidad vendida/consumida
+        consumo = warehouse.get("consumption_by_ingredient") or []
+        if consumo:
+            rows = [{"bucket": row["bucket"], "total": float(row["quantity"])}
+                    for row in consumo]
+            view = self._make_bar_chart(rows, "insumo")
+            self._replace_holder("w_consumo", view)
+        else:
+            self._reset_holder("w_consumo", "Sin consumo de inventario en el periodo")
+
+        # Movimientos por día → barras por número de movimientos
+        movs = warehouse.get("movements_by_day") or []
+        if movs:
+            rows = [{"bucket": row["bucket"], "total": float(row["count"])}
+                    for row in movs]
+            view = self._make_bar_chart(rows, "día")
+            self._replace_holder("w_movs", view)
+        else:
+            self._reset_holder("w_movs", "Sin movimientos en el periodo")
+
+    def _make_pie_chart(self, buckets: list[dict]):
+        """Gráfica de pastel a partir de buckets [{bucket, total}]."""
+        from PySide6.QtGui import QColor
+
+        series = QPieSeries()
+        for row in buckets:
+            slice_ = series.append(str(row["bucket"]), max(float(row["total"]), 0.001))
+            slice_.setLabelColor(QColor("#1a1a1a"))
+        chart = QChart()
+        chart.addSeries(series)
+        chart.legend().show()
+        self._style_chart(chart)
+        view = QChartView(chart)
+        view.setRenderHint(_painter_antialias())
+        view.setMinimumHeight(200)
+        return view
+
+    def _reset_holder(self, key: str, message: str) -> None:
+        """Vuelve al placeholder de texto cuando la serie está vacía."""
+        if key not in self._chart_layouts:
+            return
+        old = self._charts.pop(key, None)
+        if old is not None:
+            self._chart_layouts[key].removeWidget(old)
+            old.deleteLater()
+        placeholder = BodyLabel(message)
+        self._charts[key] = placeholder
+        self._chart_layouts[key].addWidget(placeholder, 1)
 
     def _style_chart(self, chart: "QChart") -> None:  # type: ignore[name-defined]
         """Estilo Fluent claro/oscuro de la gráfica."""
@@ -355,17 +474,30 @@ class StatsModule(QWidget):
 
     def _render_text_charts(self) -> None:
         """Respaldo sin QtCharts: muestra los datos como texto."""
-        for key, rows_key in (("by_day", "by_day"), ("by_hour", "by_hour"),
-                              ("by_method", "by_method"), ("top_products", "top_products")):
-            rows = self._summary.get(rows_key, [])
+        for key in ("by_day", "by_hour", "by_method", "top_products",
+                    "w_merma", "w_consumo", "w_movs"):
+            if key.startswith("w_"):
+                source = getattr(self, "_warehouse", None) or {}
+                mapping = {"w_merma": "merma_by_reason",
+                           "w_consumo": "consumption_by_ingredient",
+                           "w_movs": "movements_by_day"}
+                rows = source.get(mapping[key], [])
+            else:
+                rows = self._summary.get(key, [])
             lines = []
             for row in rows[:8]:
                 if "name" in row:
                     lines.append(f"· {row['name']}: {row['quantity']:g} vendidos")
+                elif key == "w_consumo":
+                    lines.append(f"· {row['bucket']}: {row['quantity']:g} consumidos")
+                elif key == "w_movs":
+                    lines.append(f"· {row['bucket']}: {row['count']} movimiento(s)")
                 else:
                     label = row["bucket"]
                     lines.append(f"· {label}: {money(row['total'], currency_of(self.ctx.settings))}")
-            self._charts[key].setText("\n".join(lines) or "Sin datos en el periodo")
+            widget = self._charts.get(key)
+            if widget is not None:
+                widget.setText("\n".join(lines) or "Sin datos en el periodo")
 
     # ==================================================================
     # Exportación

@@ -15,7 +15,9 @@ class SignalBus(QObject):
     categoriesChanged = Signal()      # catálogo: categorías
     productsChanged = Signal()        # catálogo: productos / recetas
     ingredientsChanged = Signal()     # inventario: insumos
-    movementsChanged = Signal()       # inventario: movimientos
+    movementsChanged = Signal()       # inventario: movimientos (kardex)
+    lotsChanged = Signal()            # inventario: lotes y caducidades
+    shoppingListChanged = Signal()    # listas de compras
     salesChanged = Signal()           # caja: ventas (incluye nueva venta)
     cashSessionChanged = Signal()     # caja: apertura / cierre de caja
     settingsChanged = Signal()        # ajustes: configuración modificada

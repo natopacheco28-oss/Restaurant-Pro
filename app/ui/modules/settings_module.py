@@ -77,6 +77,7 @@ class SettingsModule(ScrollArea):
         root.addWidget(TitleLabel("Ajustes"))
         root.addWidget(self._restaurant_card())
         root.addWidget(self._ticket_card())
+        root.addWidget(self._inventory_card())
         root.addWidget(self._appearance_card())
         root.addWidget(self._data_card())
         root.addWidget(self._about_card())
@@ -344,7 +345,80 @@ class SettingsModule(ScrollArea):
         self._notify("Prueba de impresión", message, error=not ok)
 
     # ==================================================================
-    # 3. Apariencia
+    # 3. Inventario y alertas (almacén)
+    # ==================================================================
+
+    def _inventory_card(self) -> SimpleCardWidget:
+        card = SimpleCardWidget()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+        layout.addWidget(SubtitleLabel("Inventario y alertas"))
+        layout.addWidget(CaptionLabel(
+            "Caducidades, insumos sin movimiento y frecuencia de las "
+            "revisaciones de alertas."))
+
+        row1 = QHBoxLayout()
+        row1.addWidget(CaptionLabel("Días de aviso de caducidad (por defecto):"))
+        self._warn_days_spin = DoubleSpinBox()
+        self._warn_days_spin.setRange(1, 365)
+        self._warn_days_spin.setDecimals(0)
+        self._warn_days_spin.setFixedWidth(100)
+        row1.addWidget(self._warn_days_spin)
+        row1.addSpacing(24)
+        row1.addWidget(CaptionLabel("Días para considerar «sin movimiento»:"))
+        self._stale_days_spin = DoubleSpinBox()
+        self._stale_days_spin.setRange(1, 365)
+        self._stale_days_spin.setDecimals(0)
+        self._stale_days_spin.setFixedWidth(100)
+        row1.addWidget(self._stale_days_spin)
+        row1.addStretch(1)
+        layout.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.addWidget(CaptionLabel("Revisar alertas cada (minutos):"))
+        self._interval_spin = DoubleSpinBox()
+        self._interval_spin.setRange(1, 720)
+        self._interval_spin.setDecimals(0)
+        self._interval_spin.setFixedWidth(100)
+        row2.addWidget(self._interval_spin)
+        row2.addStretch(1)
+        layout.addLayout(row2)
+
+        checks_row = QHBoxLayout()
+        self._notify_low_check = CheckBox("Notificar stock bajo / agotado")
+        self._notify_expiry_check = CheckBox("Notificar por caducar / vencidos")
+        self._notify_stale_check = CheckBox("Notificar sin movimiento")
+        self._system_check = CheckBox(
+            "Notificaciones de Windows cuando el programa esté minimizado")
+        for check in (self._notify_low_check, self._notify_expiry_check,
+                      self._notify_stale_check, self._system_check):
+            checks_row.addWidget(check)
+        checks_row.addStretch(1)
+        layout.addLayout(checks_row)
+
+        save = PrimaryPushButton("Guardar ajustes de inventario")
+        save.setIcon(fi("ACCEPT", "SAVE"))
+        save.clicked.connect(self._save_inventory)
+        layout.addWidget(save)
+        return card
+
+    def _save_inventory(self) -> None:
+        self.ctx.settings.update({
+            "inventory.expiry_warning_days": int(self._warn_days_spin.value()),
+            "inventory.stale_days": int(self._stale_days_spin.value()),
+            "inventory.alert_interval_min": int(self._interval_spin.value()),
+            "inventory.notify_low": self._notify_low_check.isChecked(),
+            "inventory.notify_expiry": self._notify_expiry_check.isChecked(),
+            "inventory.notify_stale": self._notify_stale_check.isChecked(),
+            "inventory.system_notifications": self._system_check.isChecked(),
+        })
+        self.ctx.bus.settingsChanged.emit()  # reprograma el temporizador
+        self._notify("Ajustes de inventario guardados",
+                     "Las alertas se revisarán con la nueva frecuencia.")
+
+    # ==================================================================
+    # 4. Apariencia
     # ==================================================================
 
     def _appearance_card(self) -> SimpleCardWidget:
@@ -545,6 +619,19 @@ class SettingsModule(ScrollArea):
         self._cut_check.setChecked(bool(s.get("ticket.auto_cut", True)))
         self._drawer_check.setChecked(bool(s.get("ticket.open_drawer", False)))
         self._autoprint_check.setChecked(bool(s.get("ticket.auto_print", True)))
+        # Inventario y alertas
+        self._warn_days_spin.setValue(
+            float(s.get("inventory.expiry_warning_days", 7) or 7))
+        self._stale_days_spin.setValue(
+            float(s.get("inventory.stale_days", 30) or 30))
+        self._interval_spin.setValue(
+            float(s.get("inventory.alert_interval_min", 30) or 30))
+        self._notify_low_check.setChecked(bool(s.get("inventory.notify_low", True)))
+        self._notify_expiry_check.setChecked(
+            bool(s.get("inventory.notify_expiry", True)))
+        self._notify_stale_check.setChecked(bool(s.get("inventory.notify_stale", True)))
+        self._system_check.setChecked(
+            bool(s.get("inventory.system_notifications", False)))
         self._theme_combo.setCurrentIndex(
             {"auto": 0, "light": 1, "dark": 2}.get(str(s.get("ui.theme", "auto")), 0))
         self._backup_dir_edit.setText(s.get("paths.backup_dir", ""))

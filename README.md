@@ -30,17 +30,49 @@ sobre **SQLite**.
   precio ≥ 0, sin duplicados).
 - Las tablas y listas se actualizan al instante **sin reiniciar** el programa.
 
-### 📦 3. Inventario
-- Insumos con unidad, stock actual, stock mínimo y costo.
-- **Entradas y salidas manuales** con historial completo de movimientos
-  (cada movimiento guarda el stock resultante, para auditoría).
-- **Alertas visuales de stock bajo** (renglones en rojo + aviso emergente).
+### 📦 3. Inventario (almacén con 5 vistas)
+- **Insumos**: unidad, stock, mínimo, **ideal de reposición**, costo,
+  proveedor e insignias de estado (Normal / Bajo / Agotado).
+- **Kardex inmutable**: fecha/hora, insumo, tipo (entrada, salida, merma o
+  desperdicio, ajuste, consumo por venta), cantidad, costo unitario, **lote**,
+  proveedor, motivo y usuario. Los movimientos **no se editan ni se borran**
+  (solo se corrigen con un ajuste). Filtrable por insumo, tipo, fechas y
+  motivo, con **exportación a Excel/CSV**.
+- **Por caducar**: cada entrada lleva **lote** y **fecha de caducidad**
+  opcionales; días de aviso por insumo (o el global de Ajustes). Las salidas
+  descuentan **primero el lote que caduca antes (PEPS/FEFO)**. Semáforo
+  vencido (rojo) / próximo (naranja) / vigente (verde) con acciones rápidas:
+  dar salida o marcar merma con su motivo.
+- **Sin movimiento**: insumos con existencia sin salidas en X días
+  (configurable, 30 por defecto) con días estancados, **valor inmovilizado**
+  y sugerencia (promoción, menú del día, platillo especial o merma).
+- **Compras**: lista de compras sugerida (stock ideal − stock, o mínimo × 2),
+  editable, agrupada por proveedor con costo estimado, exportable a
+  **Excel/CSV/PDF o impresora de tickets**, con historial y estado
+  (pendiente/comprada) y **conversión de la lista en entradas con un clic**.
+- Las entradas y salidas manuales requieren la clave maestra (modo edición,
+  una vez por sesión).
+
+### 🔔 Notificaciones del almacén
+- Al abrir el programa y luego cada cierto tiempo (QTimer configurable,
+  30 min por defecto) revisa stock bajo, por caducar/vencidos y sin movimiento.
+- **Campana con contador** en la barra superior que abre el centro de
+  notificaciones (lista de alertas con «Ver» → va directo al insumo,
+  «Posponer» 1 hora y «Atendida»).
+- Resumen automático al abrir («Hoy: 3 por caducar, 5 en stock bajo»).
+- Una alerta **atendida no vuelve** mientras la condición no cambie; una
+  **pospuesta** reaparece al expirar.
+- Opcional: **notificación de Windows (bandeja)** si el programa está
+  minimizado.
 
 ### 📊 4. Estadísticas
 - Ventas por día/semana/mes con filtro por **rango de fechas** (preajustes o
   fechas personalizadas).
 - Productos más vendidos, ventas por método de pago, **ticket promedio** y
   ventas por hora.
+- **Almacén**: tarjetas de valor del inventario, stock bajo, por caducar,
+  merma del periodo y valor inmovilizado; gráficas de **merma por motivo**,
+  **consumo por insumo** y **movimientos del kardex por día**.
 - Gráficas **QtCharts** con estilo Fluent y modo claro/oscuro automático.
 - **Exportar a Excel** (multi-hoja) **o CSV**.
 
@@ -84,13 +116,18 @@ sobre **SQLite**.
 - Botones **«Respaldar ahora»** y **«Restaurar respaldo»** (con confirmación
   y copia previa de la base actual). Carpeta de respaldos configurable.
 - **Migraciones de esquema versionadas** (`PRAGMA user_version`) para
-  actualizar sin perder datos.
+  actualizar sin perder datos. La v2 añadió lotes con caducidad, kardex
+  extendido, stock ideal, listas de compras y alertas atendidas — sin tocar
+  los datos existentes.
 
 ### ⚙️ Ajustes
 - Datos del restaurante: nombre, eslogan, teléfono, dirección, **RFC/dato
   fiscal**, redes sociales, **logo con vista previa**, políticas.
 - Moneda, **porcentaje de impuesto**, **propina sugerida**, mensaje al pie del
   ticket — todo se refleja en los tickets impresos.
+- **Inventario y alertas**: días de aviso de caducidad por defecto, días para
+  considerar «sin movimiento», frecuencia de revisión de alertas, activar o
+  desactivar cada tipo de notificación y notificaciones de Windows.
 - Tema **claro / oscuro / automático** y **color de acento**.
 - Datos y respaldos (carpeta configurable, respaldar/restaurar, abrir carpeta).
 
@@ -127,7 +164,7 @@ la clave maestra.
 ### Pruebas
 
 ```bash
-pytest                          # 44 pruebas unitarias (servicios, seguridad, BD, tickets, respaldos)
+pytest                          # 78 pruebas unitarias (servicios, almacén, seguridad, BD, tickets, respaldos)
 python scripts/smoke_test.py    # importa todos los módulos de la app
 ```
 
@@ -143,10 +180,12 @@ app/
 │   ├── paths.py            ← rutas portables junto al .exe
 │   ├── settings.py         ← configuración JSON con defaults fusionados
 │   ├── database.py         ← SQLite (WAL, claves foráneas, transacciones)
-│   ├── migrations.py       ← migraciones versionadas del esquema
+│   ├── migrations.py       ← migraciones versionadas (v1 base + v2 almacén)
+│   ├── export.py           ← exportación a CSV / Excel / PDF
 │   ├── security.py         ← PBKDF2 + modo edición + retraso progresivo
 │   ├── backup.py           ← respaldos con retención de 10
-│   └── services/           ← lógica de negocio (catálogo, inventario, caja, estadísticas)
+│   └── services/           ← catálogo, inventario (kardex/lotes), caja,
+│                             listas de compras, alertas y estadísticas
 ├── printing/
 │   ├── ticket_builder.py   ← texto del ticket alineado (32/48 caracteres)
 │   ├── escpos.py           ← comandos ESC/POS + logo rasterizado
@@ -154,10 +193,12 @@ app/
 └── ui/
     ├── splash.py           ← bootlogo animado
     ├── first_run.py        ← asistente de primer arranque
-    ├── main_window.py      ← navegación lateral Fluent + Ctrl+P oculto
+    ├── main_window.py      ← navegación lateral + campana de alertas + Ctrl+P
     ├── common.py           ← widgets compartidos (banner de edición, tarjetas…)
-    ├── dialogs/            ← cobro, caja, tickets, catálogo, inventario, seguridad
-    └── modules/            ← Caja, Catálogo, Inventario, Estadísticas, Ajustes
+    ├── dialogs/            ← cobro, caja, tickets, catálogo, inventario, compras,
+    │                          notificaciones y seguridad
+    └── modules/            ← Caja, Catálogo, Inventario (5 vistas),
+                               Estadísticas y Ajustes
 ```
 
 ---

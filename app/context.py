@@ -22,6 +22,8 @@ class AppContext:
     printer: Optional[object] = None
     catalog: Optional[object] = None
     inventory: Optional[object] = None
+    shopping: Optional[object] = None
+    alerts: Optional[object] = None
     sales: Optional[object] = None
     stats: Optional[object] = None
 
@@ -31,7 +33,8 @@ ctx = AppContext()
 
 
 def init_context(settings, db, bus, security, backup, printer,
-                 catalog, inventory, sales, stats) -> AppContext:
+                 catalog, inventory, shopping, alerts,
+                 sales, stats) -> AppContext:
     """Registra los servicios en el contexto global."""
     ctx.settings = settings
     ctx.db = db
@@ -41,6 +44,8 @@ def init_context(settings, db, bus, security, backup, printer,
     ctx.printer = printer
     ctx.catalog = catalog
     ctx.inventory = inventory
+    ctx.shopping = shopping
+    ctx.alerts = alerts
     ctx.sales = sales
     ctx.stats = stats
     return ctx

@@ -13,7 +13,7 @@ def test_migrations_create_schema(db):
     expected = {"categories", "products", "ingredients", "recipes",
                 "cash_sessions", "sales", "sale_items", "movements"}
     assert expected.issubset(tables)
-    assert db.user_version() == 1
+    assert db.user_version() == 2
 
 
 def test_migrations_are_idempotent(db):
@@ -24,7 +24,7 @@ def test_fresh_database_version(tmp_path):
     database = Database(tmp_path / "fresh.db").connect()
     assert database.user_version() == 0
     run_migrations(database, log=lambda msg: None)
-    assert database.user_version() == 1
+    assert database.user_version() == 2  # v1 base + v2 almacén
     database.close()
 
 

@@ -20,6 +20,27 @@ from qfluentwidgets import (
 
 from app.printing.ticket_builder import money
 
+# Paleta de estados (claro/oscuro: tonos legibles en ambos temas)
+COLOR_OK = "#22a06b"       # verde: vigente / normal / cuadra
+COLOR_WARN = "#e6a23c"     # naranja: por caducar / stock bajo
+COLOR_ERROR = "#d13438"    # rojo: vencido / agotado / faltante
+
+
+def badge_label(text: str, color: str) -> QLabel:
+    """Insignia de color (punto + texto) para estados de tabla/lista."""
+    label = QLabel(f"● {text}")
+    label.setStyleSheet(f"color: {color}; font-weight: 600;")
+    return label
+
+
+def state_color(estado: str) -> str:
+    """Color por estado de insumo/lote: normal/vigente, bajo/por_caducar, agotado/vencido."""
+    return {
+        "normal": COLOR_OK, "vigente": COLOR_OK, "sin_caducidad": COLOR_OK,
+        "bajo": COLOR_WARN, "por_caducar": COLOR_WARN,
+        "agotado": COLOR_ERROR, "vencido": COLOR_ERROR,
+    }.get(estado, COLOR_WARN)
+
 
 # ----------------------------------------------------------------------
 # Iconos Fluent con tolerancia a versiones
@@ -188,6 +209,13 @@ class KPICard(SimpleCardWidget):
 
     def set_value(self, value: str) -> None:
         self._value.setText(value)
+
+    def set_value_color(self, color: Optional[str] = None) -> None:
+        """Colorea el valor (None restaura el color por defecto del tema)."""
+        if color:
+            self._value.setStyleSheet(f"color: {color};")
+        else:
+            self._value.setStyleSheet("")
 
 
 class SettingRow(CardWidget):

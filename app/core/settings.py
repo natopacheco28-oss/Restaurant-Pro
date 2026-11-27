@@ -48,6 +48,16 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "pos": {
         "default_order_type": "mesa",
     },
+    # Almacén: caducidades, estancados y notificaciones
+    "inventory": {
+        "expiry_warning_days": 7,     # días de aviso previo por defecto
+        "stale_days": 30,             # días sin salidas = "sin movimiento"
+        "alert_interval_min": 30,     # frecuencia de revisión de alertas
+        "notify_low": True,           # notificar stock bajo / agotado
+        "notify_expiry": True,        # notificar por caducar / vencidos
+        "notify_stale": True,         # notificar insumos sin movimiento
+        "system_notifications": False,  # bandeja de Windows si está minimizado
+    },
 }
 
 
