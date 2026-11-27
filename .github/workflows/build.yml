@@ -1,0 +1,91 @@
+name: Restaurante Pro (tests + EXE de Windows)
+
+# Genera el .exe portable con PyInstaller en cada push a main y en tags v*.
+# El artefacto se sube siempre; en tags se crea además un Release de GitHub.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Pruebas (pytest + smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Librerías de sistema para Qt (offscreen)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+
+      - name: Pruebas unitarias
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set -o pipefail
+          pytest --tb=short -ra 2>&1 | tee pytest_ci.txt
+
+      - name: Subir salida de pruebas (diagnóstico)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output
+          path: pytest_ci.txt
+          if-no-files-found: ignore
+
+      - name: Smoke test de importación
+        run: python scripts/smoke_test.py
+
+  build:
+    name: EXE de Windows (PyInstaller)
+    needs: tests
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias + PyInstaller
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Compilar RestaurantePro.exe
+        run: pyinstaller restaurante_pro.spec --noconfirm
+
+      - name: Empaquetar carpeta portable en ZIP
+        shell: powershell
+        run: |
+          # Sanitizar el nombre (refs de rama pueden contener '/')
+          $version = "${{ github.ref_name }}" -replace '/', '-'
+          $zip = "RestaurantePro-$version-Windows.zip"
+          Compress-Archive -Path dist/RestaurantePro/* -DestinationPath $zip -Force
+          Get-Item $zip
+          "ZIP_PATH=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: RestaurantePro-Windows
+          path: ${{ env.ZIP_PATH }}
+          retention-days: 30
+
+      - name: Publicar Release (solo en tags v*)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" "$env:ZIP_PATH" --title "Restaurante Pro ${{ github.ref_name }}" --generate-notes

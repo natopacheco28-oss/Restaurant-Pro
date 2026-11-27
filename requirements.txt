@@ -1,0 +1,19 @@
+# =====================================================
+# Restaurante Pro — Dependencias de producción
+# Stack: Python 3.11+ · PySide6 · Fluent Widgets · SQLite
+# =====================================================
+
+# Interfaz Fluent (incluye QtWidgets, QtPrintSupport y QtCharts vía PySide6-Addons)
+PySide6>=6.6,<7
+
+# Widget library Fluent Design para PySide6 (paquete de importación: qfluentwidgets)
+PySide6-Fluent-Widgets>=1.6
+
+# Impresión térmica RAW (ESC/POS) sobre la impresora instalada en Windows
+pywin32>=306 ; sys_platform == "win32"
+
+# Procesamiento de imágenes: logo del ticket, miniaturas e icono
+Pillow>=10.0
+
+# Exportación de estadísticas a Excel
+openpyxl>=3.1
