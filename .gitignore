@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Empaquetado (PyInstaller)
+build/
+dist/
+*.manifest
+
+# Datos portables y respaldos: se generan junto al .exe en tiempo de ejecución
+data/
+backups/
+
+# Registros
+*.log
+
+# Sistemas
+.DS_Store
+Thumbs.db
