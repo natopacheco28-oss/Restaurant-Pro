@@ -15,9 +15,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.components.spinboxes import AppDoubleSpinBox
 from qfluentwidgets import (
     CaptionLabel,
-    DoubleSpinBox,
     LineEdit,
     MessageBoxBase,
     StrongBodyLabel,
@@ -46,7 +46,7 @@ class OpenCashDialog(MessageBoxBase):
 
         grid = QGridLayout()
         grid.addWidget(QLabel("Fondo inicial:"), 0, 0)
-        self._fund_edit = DoubleSpinBox()
+        self._fund_edit = AppDoubleSpinBox()
         self._fund_edit.setRange(0.0, 999999.0)
         self._fund_edit.setDecimals(2)
         self._fund_edit.setSingleStep(100.0)
@@ -115,7 +115,7 @@ class CashCutDialog(MessageBoxBase):
         # --- Conteo real ---
         grid = QGridLayout()
         grid.addWidget(QLabel("Efectivo contado:"), 0, 0)
-        self._counted_edit = DoubleSpinBox()
+        self._counted_edit = AppDoubleSpinBox()
         self._counted_edit.setRange(0.0, 999999.0)
         self._counted_edit.setDecimals(2)
         self._counted_edit.setValue(cash_expected)

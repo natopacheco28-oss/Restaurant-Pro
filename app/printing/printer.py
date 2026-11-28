@@ -11,10 +11,16 @@ El método se elige en Ajustes: `auto` (RAW si es posible, si no Qt),
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from PySide6.QtGui import QFont, QTextDocument
-from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
+# QPrinter, QPrintDialog, QPrintPreviewDialog y QPrinterInfo pertenecen a
+# QtPrintSupport (NO a QtWidgets — en Qt 6 un import equivocado reventa
+# "cannot import name 'QPrintDialog' from 'PySide6.QtWidgets'")
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter, QPrinterInfo
+
+log = logging.getLogger("restaurante.printing")
 
 # win32print solo existe en Windows (pywin32); fuera de él se usa QPrinter
 try:
@@ -75,10 +81,9 @@ def print_text_qt(text: str, printer_name: Optional[str] = None,
     if printer_name:
         printer.setPrinterName(printer_name)
     if ask_printer:
-        from PySide6.QtWidgets import QPrintDialog
-
         dialog = QPrintDialog(printer)
         if dialog.exec() != QPrintDialog.DialogCode.Accepted:
+            log.info("Impresión cancelada por el usuario.")
             return
 
     doc = QTextDocument()
@@ -107,10 +112,19 @@ class PrinterManager:
 
         Devuelve (éxito, mensaje). En modo `raw` adjunta logo/corte/cajón vía
         ESC/POS; en `qprinter` imprime el texto monoespaciado. Si falla la
-        ruta RAW, reintenta automáticamente por QPrinter.
+        ruta RAW, reintenta automáticamente por QPrinter. Nunca lanza: los
+        fallos regresan como mensaje claro y quedan en el log.
         """
         method = str(self.settings.get("ticket.print_method", "auto"))
         printer_name = self.current_printer()
+
+        # Validación amable: la impresora configurada debe existir
+        if printer_name and printer_name not in list_printers():
+            message = (f"La impresora «{printer_name}» no está instalada o no "
+                       f"está disponible.\nVerifica el nombre y la conexión "
+                       f"(USB/red) en Ajustes → Impresión.")
+            log.error(message)
+            return False, message
 
         if method in ("auto", "raw") and HAS_WIN32PRINT and printer_name:
             data = self._build_escpos(ticket_text, logo_path)
@@ -118,12 +132,18 @@ class PrinterManager:
                 print_raw_windows(printer_name, data)
                 return True, "Ticket enviado por RAW/ESC-POS."
             except RuntimeError as exc:
+                log.error("Impresión RAW falló en «%s»: %s", printer_name, exc)
                 # Fallback automático a la ruta gráfica de Qt
                 try:
                     print_text_qt(ticket_text, printer_name=printer_name)
                     return True, f"Impreso por QPrinter (RAW falló: {exc})"
-                except Exception:
-                    return False, str(exc)
+                except Exception as qt_exc:
+                    log.error("Fallback QPrinter también falló: %s", qt_exc)
+                    return False, (
+                        f"No se pudo imprimir en «{printer_name}».\n"
+                        f"RAW/ESC-POS: {exc}\nQPrinter: {qt_exc}\n\n"
+                        f"Revisa que la impresora esté encendida, con papel "
+                        f"y sin errores en Windows.")
 
         # Ruta Qt (Linux, macOS o impresoras sin soporte RAW)
         try:
@@ -134,7 +154,10 @@ class PrinterManager:
             )
             return True, "Ticket enviado por QPrinter."
         except Exception as exc:
-            return False, f"Error al imprimir: {exc}"
+            log.error("Impresión por QPrinter falló: %s", exc)
+            return False, (
+                f"No se pudo imprimir el ticket.\nDetalle: {exc}\n\n"
+                f"Verifica que haya una impresora instalada y disponible.")
 
     def _build_escpos(self, ticket_text: str, logo_path: Optional[str]) -> bytes:
         from app.printing.escpos import build_escpos

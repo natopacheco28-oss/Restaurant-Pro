@@ -10,9 +10,10 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFormLayout, QWidget
 
+from app.ui.components.spinboxes import AppDoubleSpinBox
 from qfluentwidgets import (
     ComboBox,
-    DoubleSpinBox,
+    EditableComboBox,
     InfoBar,
     InfoBarPosition,
     LineEdit,
@@ -57,21 +58,21 @@ class ShoppingItemDialog(MessageBoxBase):
             self._name_edit.setText(item["name"])
         form.addRow("Nombre:", self._name_edit)
 
-        self._qty_edit = DoubleSpinBox()
+        self._qty_edit = AppDoubleSpinBox()
         self._qty_edit.setRange(0.001, 999999.0)
         self._qty_edit.setDecimals(3)
         self._qty_edit.setValue(float(item["quantity"]) if item else 1.0)
         form.addRow("Cantidad:", self._qty_edit)
 
-        self._unit_combo = ComboBox()
-        self._unit_combo.setEditable(True)
+        # EditableComboBox permite escribir una unidad personalizada
+        self._unit_combo = EditableComboBox()
         for unit in UNITS:
             self._unit_combo.addItem(unit)
-        self._unit_combo.setCurrentText(item["unit"] if item else "pza")
+        self._unit_combo.setText(item["unit"] if item else "pza")
         form.addRow("Unidad:", self._unit_combo)
 
         currency = currency_of(ctx.settings)
-        self._cost_edit = DoubleSpinBox()
+        self._cost_edit = AppDoubleSpinBox()
         self._cost_edit.setRange(0.0, 999999.0)
         self._cost_edit.setDecimals(2)
         self._cost_edit.setPrefix(f"{currency} ")
@@ -102,7 +103,7 @@ class ShoppingItemDialog(MessageBoxBase):
             return
         if not self._name_edit.text().strip():
             self._name_edit.setText(ing["name"])
-        self._unit_combo.setCurrentText(ing["unit"])
+        self._unit_combo.setText(ing["unit"])
 
     def result_item(self) -> dict:
         """Renglón resultante (llamar tras accept())."""

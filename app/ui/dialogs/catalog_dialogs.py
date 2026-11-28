@@ -27,10 +27,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.components.spinboxes import AppDoubleSpinBox
 from qfluentwidgets import (
     BodyLabel,
     ComboBox,
-    DoubleSpinBox,
     InfoBar,
     InfoBarPosition,
     LineEdit,
@@ -63,7 +63,7 @@ class CategoryDialog(MessageBoxBase):
         if category:
             self._name_edit.setText(category["name"])
         form.addRow("Nombre:", self._name_edit)
-        self._sort_edit = DoubleSpinBox()
+        self._sort_edit = AppDoubleSpinBox()
         self._sort_edit.setRange(0, 999)
         self._sort_edit.setDecimals(0)
         self._sort_edit.setValue(float(category["sort"]) if category else 0.0)
@@ -118,7 +118,7 @@ class ProductDialog(MessageBoxBase):
             self._name_edit.setText(product["name"])
         form.addRow("Nombre:", self._name_edit)
 
-        self._price_edit = DoubleSpinBox()
+        self._price_edit = AppDoubleSpinBox()
         self._price_edit.setRange(0.0, 999999.0)
         self._price_edit.setDecimals(2)
         self._price_edit.setPrefix(f"{currency} ")
@@ -179,7 +179,7 @@ class ProductDialog(MessageBoxBase):
         add_row = QHBoxLayout()
         self._ingredient_combo = ComboBox()
         self._load_ingredients()
-        self._qty_edit = DoubleSpinBox()
+        self._qty_edit = AppDoubleSpinBox()
         self._qty_edit.setRange(0.001, 99999.0)
         self._qty_edit.setDecimals(3)
         self._qty_edit.setValue(1.0)

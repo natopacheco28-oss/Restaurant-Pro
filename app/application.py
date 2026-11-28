@@ -76,11 +76,21 @@ def apply_theme(settings: Settings) -> None:
         setTheme(theme_map.get(theme_value, Theme.AUTO))
     except Exception:
         setTheme(Theme.LIGHT)
-    accent = str(settings.get("ui.accent", "#ff7a1a"))
+    # Color de acento: validar el hex guardado; si falta o es inválido,
+    # usar el color por defecto sin fallar
+    accent_value = str(settings.get("ui.accent", "") or "").strip()
     try:
-        setThemeColor(accent)
+        from PySide6.QtGui import QColor
+
+        color = QColor(accent_value) if accent_value else QColor("#ff7a1a")
+        if not color.isValid():
+            color = QColor("#ff7a1a")
+        setThemeColor(color)
     except Exception:
-        pass
+        try:
+            setThemeColor("#ff7a1a")
+        except Exception:
+            pass
 
 
 def check_write_permissions() -> bool:
