@@ -272,7 +272,7 @@ class SettingsModule(ScrollArea):
         preview_button = PushButton("Vista previa del ticket")
         preview_button.setIcon(fi("VIEW", "ZOOM"))
         preview_button.clicked.connect(self._preview_ticket)
-        test_button = PushButton("Imprimir prueba")
+        test_button = PushButton("Imprimir ticket de prueba (demo)")
         test_button.setIcon(fi("PRINT", "DOCUMENT"))
         test_button.clicked.connect(self._print_test)
         actions_row.addWidget(preview_button)

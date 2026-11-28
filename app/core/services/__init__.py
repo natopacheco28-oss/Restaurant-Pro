@@ -12,6 +12,7 @@ from app.core.services.sales_service import (
     PAYMENT_METHODS,
     SalesService,
 )
+from app.core.services.maintenance_service import reset_operational_data
 from app.core.services.shopping_service import ShoppingService
 from app.core.services.stats_service import StatsService
 
@@ -25,4 +26,5 @@ __all__ = [
     "ValidationError",
     "ORDER_TYPES",
     "PAYMENT_METHODS",
+    "reset_operational_data",
 ]

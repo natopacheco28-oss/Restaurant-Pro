@@ -105,6 +105,18 @@ class BootSplash(QWidget):
         self.raise_()
         self._fade.start()
 
+    def close_now(self) -> None:
+        """Cierra el bootlogo de inmediato, sin fundido de salida.
+
+        Se usa antes del asistente de primer arranque: como el splash es
+        «siempre visible» (StaysOnTop), quedaría ENCIMA del formulario de
+        configuración impidiendo escribir hasta moverlo a un lado.
+        """
+        self._fade.stop()
+        self.close()
+        self.deleteLater()
+        self.finished.emit()
+
     def finish(self, main_window: QWidget) -> None:
         """Fundido de salida y cierre cuando la app ya está lista."""
         self._fade.stop()
