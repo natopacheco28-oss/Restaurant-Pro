@@ -18,6 +18,8 @@ from typing import Optional
 # Ancho imprimible en puntos por tamaño de papel:
 # 32 caracteres → 58 mm · 44 → 80 mm (detectado) · 48 → 80 mm configurado
 PRINTER_DOTS = {32: 384, 44: 512, 48: 576}
+# Tamaño del logo impreso (cuadrado, px) por formato — ABCell Pro
+LOGO_PX = {32: 128, 44: 148, 48: 148}
 
 ESC = b"\x1b"
 GS = b"\x1d"
@@ -87,42 +89,40 @@ class EscposBuilder:
 # Logo rasterizado en blanco y negro
 # ----------------------------------------------------------------------
 
-def raster_logo(image_path, dots: int) -> bytes:
-    """Convierte el logo a un bitmap 1-bit listo para `GS v 0`.
+def raster_logo(image_path, logo_px: int) -> bytes:
+    """Convierte el logo a un bitmap 1-bit pequeño (cuadrado `logo_px`)
+    listo para `GS v 0`, con ancho múltiplo de 8.
 
-    - Escala la imagen al ancho imprimible (384 pts para 58 mm, 576 para 80 mm)
-      manteniendo la proporción.
-    - Umbraliza a blanco y negro (dithering no: líneas más limpias para logos).
+    - `ImageOps.contain` a (logo_px, logo_px) manteniendo proporción —
+      el tamaño impreso queda contenido en logo_px × logo_px puntos.
+    - Umbral estilo ABCell Pro: el píxel oscuro se imprime (bit = 1).
     """
-    from PIL import Image
+    from PIL import Image, ImageOps
 
-    img = Image.open(image_path).convert("L")
+    logo = Image.open(image_path)
+    logo = ImageOps.exif_transpose(logo).convert("L")
 
-    # Escalar al ancho de puntos manteniendo proporción
-    ratio = dots / img.width
-    height = max(1, int(img.height * ratio))
-    img = img.resize((dots, height), Image.LANCZOS)
+    img = ImageOps.contain(logo, (logo_px, logo_px), Image.Resampling.LANCZOS)
+    # Ancho múltiplo de 8 para empaquetar bytes limpio (relleno blanco)
+    width = ((img.width + 7) // 8) * 8
+    canvas = Image.new("L", (width, img.height), 255)
+    canvas.paste(img, ((width - img.width) // 2, 0))
+    # Oscuro (p<128) → 255 → bit 1 → se imprime (inversión correcta ESC/POS)
+    bw = canvas.point(lambda p: 255 if p < 128 else 0).convert("1")
 
-    # Blanco y negro puro con umbral (el logo es oscuro sobre fondo claro)
-    img = img.point(lambda px: 0 if px < 150 else 255, mode="1")
+    height = bw.height
+    row_bytes = width // 8
+    raw = bw.tobytes("raw", "1")
+    if len(raw) != row_bytes * height:          # seguridad ante padding raro
+        raw = (raw + b"\x00" * (row_bytes * height))[:row_bytes * height]
 
-    # Pillow guarda el bitmap en filas de bytes alineadas por palabra
-    raw = img.tobytes("raw", "1")
-    row_bytes = (img.width + 7) // 8
-
-    # Redistribuir por filas exactas (Pillow puede incluir padding)
-    stride = len(raw) // img.height
-    payload = bytearray()
-    for row in range(img.height):
-        payload += raw[row * stride: row * stride + row_bytes]
-
-    x_l = dots & 0xFF
-    x_h = (dots >> 8) & 0xFF
-    y_l = img.height & 0xFF
-    y_h = (img.height >> 8) & 0xFF
+    x_l = width & 0xFF
+    x_h = (width >> 8) & 0xFF
+    y_l = height & 0xFF
+    y_h = (height >> 8) & 0xFF
 
     header = GS + b"v0\x00" + bytes([x_l, x_h, y_l, y_h])
-    return header + bytes(payload)
+    return header + raw
 
 
 # ----------------------------------------------------------------------
@@ -145,17 +145,17 @@ def build_escpos(
     builder = EscposBuilder()
     builder.reset()
 
-    # Logo en blanco y negro (si está configurado y existe)
+    # Logo PEQUEÑO y centrado, tamaño contenido por formato (ABCell Pro):
+    # 58 mm → 128 px · 80 mm → 148 px (antes se estiraba a todo el ancho)
     if show_logo and logo_path:
         try:
-            dots = PRINTER_DOTS.get(width_chars, 576)
-            builder.raw(raster_logo(logo_path, dots))
-            builder.feed(1)
+            logo_px = LOGO_PX.get(width_chars, 148)
+            builder.align_center()
+            builder.raw(raster_logo(logo_path, logo_px))
+            builder.align_left()
         except Exception:
             # Un logo problemático nunca debe impedir imprimir el ticket
-            pass
-
-    builder.align_left()
+            builder.align_left()
     for line in ticket_text.splitlines():
         builder.text(line)
 

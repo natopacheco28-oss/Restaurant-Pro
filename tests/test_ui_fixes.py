@@ -81,6 +81,94 @@ def test_no_seteditable_en_combos_qfluent():
             str(path.relative_to(PROJECT_ROOT))
 
 
+# ----------------------------------------------------------------------
+# POS: recarga de cuadrícula (FlowLayout.takeAt) y comandas libres
+# ----------------------------------------------------------------------
+
+def test_pos_reload_varias_veces_sin_error(qapp):
+    """«Todo»/categoría/búsqueda repetidos no revientan: el FlowLayout de
+    qfw devuelve el WIDGET en takeAt, no un QLayoutItem."""
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QWidget
+
+    from qfluentwidgets import FlowLayout
+
+    from app.ui.modules.pos_module import PosModule
+
+    grid = FlowLayout()
+    dummy = SimpleNamespace(
+        _grid=grid, _search_text="", _category_id=None,
+        ctx=SimpleNamespace(catalog=SimpleNamespace(
+            list_products=lambda **kwargs: [])),
+    )
+    PosModule._reload_products(dummy)      # 1.ª vez: agrega «sin productos»
+    assert grid.count() == 1
+    PosModule._reload_products(dummy)      # antes: AttributeError 'BodyLabel'
+    assert grid.count() == 1
+    PosModule._reload_products(dummy)      # 3.ª vez, también estable
+    assert grid.count() == 1
+
+
+def test_pos_comanda_libre_en_carrito(qapp):
+    """add_free_item agrega renglón sin product_id (checkout lo admite)."""
+    from types import SimpleNamespace
+
+    from app.ui.modules.pos_module import PosModule
+
+    cart = []
+    refreshed = []
+
+    def fake_refresh(_cart):
+        refreshed.append(True)
+
+    dummy = SimpleNamespace(cart=cart, _cart_card=SimpleNamespace(refresh=fake_refresh))
+    PosModule.add_free_item(dummy, {
+        "name": "Especial del día", "unit_price": 85.5,
+        "quantity": 2, "note": "sin chile",
+    })
+    assert cart == [{
+        "product_id": None, "name": "Especial del día",
+        "unit_price": 85.5, "quantity": 2.0, "note": "sin chile",
+    }]
+    assert refreshed
+
+
+# ----------------------------------------------------------------------
+# Logo ESC/POS contenido (estilo ABCell Pro)
+# ----------------------------------------------------------------------
+
+def test_logo_rasterizado_contenido():
+    """El bitmap queda contenido en logo_px y con ancho múltiplo de 8."""
+    import struct
+
+    from app.printing.escpos import raster_logo
+
+    logo = PROJECT_ROOT / "assets" / "logo.png"
+    if not logo.exists():
+        return
+    data = raster_logo(str(logo), 128)
+    assert data[:4] == b"\x1d\x76\x30\x00"          # GS v 0
+    width, height = struct.unpack("<HH", data[4:8])
+    assert width <= 128 and width % 8 == 0
+    assert height <= 128
+    assert len(data) == 8 + (width // 8) * height
+
+
+def test_build_escpos_logo_centrado_y_corte():
+    """El flujo inicia con ESC @, centra el logo y termina con corte GS V."""
+    from app.printing.escpos import build_escpos
+
+    logo = PROJECT_ROOT / "assets" / "logo.png"
+    logo_path = str(logo) if logo.exists() else None
+    data = build_escpos("HOLA\nMUNDO", logo_path=logo_path,
+                        width_chars=32, show_logo=bool(logo_path))
+    assert data[:2] == b"\x1b@"                      # ESC @
+    assert b"\x1b\x61\x01" in data                   # centro para el logo
+    assert data.rstrip().endswith(b"\x1dV\x42\x00")  # corte parcial
+    assert b"HOLA\nMUNDO\n" in data                  # texto intacto
+
+
 # ======================================================================
 # 2. Selector de color de acento
 # ======================================================================

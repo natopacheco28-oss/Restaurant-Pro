@@ -171,10 +171,15 @@ class PosModule(QWidget):
 
     def _reload_products(self) -> None:
         """Recarga la cuadrícula según categoría y búsqueda activas."""
-        # Limpiar cuadrícula
+        # Limpiar cuadrícula. OJO: el FlowLayout de qfluentwidgets devuelve
+        # el WIDGET directamente en takeAt (no un QLayoutItem) — llamar
+        # .widget() sobre él reventaba con «'BodyLabel' object has no
+        # attribute 'widget'» al pulsar «Todo»/categoría/buscar.
+        from PySide6.QtWidgets import QWidget
+
         while self._grid.count():
-            item = self._grid.takeAt(0)
-            widget = item.widget()
+            taken = self._grid.takeAt(0)
+            widget = taken if isinstance(taken, QWidget) else taken.widget()
             if widget:
                 widget.deleteLater()
 
@@ -215,6 +220,17 @@ class PosModule(QWidget):
             "unit_price": float(product["price"]),
             "quantity": 1,
             "note": "",
+        })
+        self._cart_card.refresh(self.cart)
+
+    def add_free_item(self, item: dict) -> None:
+        """Agrega una COMANDA libre (platillo fuera de catálogo) al carrito."""
+        self.cart.append({
+            "product_id": None,
+            "name": str(item["name"]).strip(),
+            "unit_price": float(item["unit_price"]),
+            "quantity": float(item["quantity"]),
+            "note": str(item.get("note") or ""),
         })
         self._cart_card.refresh(self.cart)
 
@@ -375,6 +391,13 @@ class CartPanel(CardWidget):
         heading = StrongBodyLabel("Ticket actual")
         header.addWidget(heading)
         header.addStretch(1)
+        # Comanda libre: platillo fuera del catálogo (p. ej. especial del día)
+        comanda_button = PushButton("Agregar comanda")
+        comanda_button.setIcon(fi("ADD", "PLUS", "ADD_TO"))
+        comanda_button.setToolTip("Agregar una comanda libre: platillo con "
+                                  "nombre, cantidad, precio y nota propios")
+        comanda_button.clicked.connect(self._add_comanda)
+        header.addWidget(comanda_button)
         clear_button = TransparentToolButton(fi("DELETE", "CLOSE"))
         clear_button.setToolTip("Vaciar carrito")
         clear_button.clicked.connect(self._clear)
@@ -407,6 +430,13 @@ class CartPanel(CardWidget):
         checkout_button.setFixedHeight(40)
         checkout_button.clicked.connect(self.pos._checkout)
         layout.addWidget(checkout_button)
+
+    def _add_comanda(self) -> None:
+        """Comanda libre: captura nombre/cantidad/precio/nota y la agrega."""
+        dialog = ComandaDialog(self.ctx, self.window())
+        if not dialog.exec():
+            return
+        self.pos.add_free_item(dialog.result_item())
 
     def _on_order_type(self, key) -> None:
         # Clave inválida (p. ej. un bool de una señal Qt) → tipo por defecto.
@@ -491,6 +521,80 @@ class CartRow(QWidget):
         dialog = NoteDialog(self.ctx, self.item, self.window())
         dialog.exec()
         self.panel.refresh(self.panel.pos.cart)
+
+
+class ComandaDialog(MessageBoxBase):
+    """Captura de una COMANDA libre (platillo fuera del catálogo).
+
+    Nombre, cantidad, precio y nota — se agrega al ticket como renglón
+    sin producto asociado; el checkout ya admite partidas sin receta.
+    """
+
+    def __init__(self, ctx, parent: QWidget):
+        super().__init__(parent)
+        self.ctx = ctx
+        from app.ui.components import make_double_spin
+
+        self.viewLayout.addWidget(SubtitleLabel("Agregar comanda"))
+
+        self._name_edit = LineEdit()
+        self._name_edit.setPlaceholderText(
+            "Platillo o bebida — ej. Especial del día")
+        self.viewLayout.addWidget(BodyLabel("Nombre:"))
+        self.viewLayout.addWidget(self._name_edit)
+
+        row = QHBoxLayout()
+        self._qty_edit = make_double_spin(0.1, 9999.0, 1.0, decimals=3,
+                                          minimum_width=110)
+        self._price_edit = make_double_spin(0.0, 999999.0, 0.0, decimals=2,
+                                            minimum_width=130)
+        row.addWidget(BodyLabel("Cantidad:"))
+        row.addWidget(self._qty_edit)
+        row.addSpacing(16)
+        row.addWidget(BodyLabel("Precio unitario:"))
+        row.addWidget(self._price_edit, 1)
+        self.viewLayout.addLayout(row)
+
+        self._note_edit = LineEdit()
+        self._note_edit.setPlaceholderText(
+            "Nota para cocina (opcional) — ej. sin cebolla, para llevar")
+        self.viewLayout.addWidget(BodyLabel("Nota:"))
+        self.viewLayout.addWidget(self._note_edit)
+
+        self.widget.setMinimumWidth(480)
+
+    def result_item(self) -> dict:
+        return {
+            "name": self._name_edit.text().strip(),
+            "unit_price": round(float(self._price_edit.value()), 2),
+            "quantity": float(self._qty_edit.value()),
+            "note": self._note_edit.text().strip(),
+        }
+
+    def validate(self) -> bool:
+        name = self._name_edit.text().strip()
+        if not name:
+            self._name_edit.setFocus()
+            InfoBar.warning(title="Falta el nombre",
+                            content="Escribe el nombre de la comanda.",
+                            parent=self, position=InfoBarPosition.TOP,
+                            duration=2500)
+            return False
+        if self._price_edit.value() <= 0:
+            self._price_edit.setFocus()
+            InfoBar.warning(title="Precio inválido",
+                            content="El precio unitario debe ser mayor a 0.",
+                            parent=self, position=InfoBarPosition.TOP,
+                            duration=2500)
+            return False
+        if self._qty_edit.value() <= 0:
+            self._qty_edit.setFocus()
+            InfoBar.warning(title="Cantidad inválida",
+                            content="La cantidad debe ser mayor a 0.",
+                            parent=self, position=InfoBarPosition.TOP,
+                            duration=2500)
+            return False
+        return True
 
 
 class NoteDialog(MessageBoxBase):
