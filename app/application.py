@@ -206,8 +206,14 @@ def run() -> int:
     splash.show_and_fade_in()
     app.processEvents()
 
-    # Primer arranque: asistente de clave maestra
-    if not ctx.security.is_configured():
+    # Primer arranque: cerrar el bootlogo ANTES del asistente — es «siempre
+    # visible» y quedaba encima de la ventana de configuración, obligando a
+    # moverlo a un lado para poder escribir.
+    first_run = not ctx.security.is_configured()
+    if first_run:
+        splash.close_now()
+
+    if first_run:
         from app.ui.first_run import FirstRunWizard
 
         wizard = FirstRunWizard(ctx)
@@ -219,6 +225,12 @@ def run() -> int:
     from app.ui.main_window import MainWindow
 
     window = MainWindow(ctx)
-    splash.finish(window)
+    if first_run:
+        # El splash ya se cerró: mostrar la ventana directamente
+        window.show()
+        window.raise_()
+        window.activateWindow()
+    else:
+        splash.finish(window)
 
     return app.exec()

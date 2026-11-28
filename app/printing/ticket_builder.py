@@ -178,25 +178,47 @@ def build_ticket_text(
 
 
 def build_test_ticket_text(settings: Any, width: Optional[int] = None) -> str:
-    """Ticket de prueba para verificar la impresora configurada."""
+    """Ticket de PRUEBA con datos de demostración verosímiles.
+
+    Se genera como si el programa ya estuviera configurado y en operación:
+    fecha y hora actuales, mesero, varias partidas con notas, descuento,
+    propina, pago en efectivo y cambio — usando la moneda y el impuesto
+    configurados — para demostrar cómo se imprime y cómo se ven los datos.
+    """
+    from datetime import datetime
+
+    tax_rate = float(settings.get("ticket.tax_rate", 0) or 0)
+    items = [
+        {"product_name": "Tacos de pastor (orden)", "unit_price": 96.0,
+         "quantity": 2, "note": "Sin cilantro, con todo"},
+        {"product_name": "Quesadilla de chicharrón", "unit_price": 55.0,
+         "quantity": 1, "note": "Queso extra"},
+        {"product_name": "Agua de horchata 1 L", "unit_price": 45.0,
+         "quantity": 1, "note": ""},
+        {"product_name": "Refresco en lata", "unit_price": 25.0,
+         "quantity": 3, "note": "Bien fríos"},
+    ]
+    subtotal = round(sum(float(i["unit_price"]) * float(i["quantity"])
+                         for i in items), 2)
+    discount = round(subtotal * 0.10, 2)   # descuento de demostración (10 %)
+    taxable = subtotal - discount
+    tax = round(taxable * tax_rate / 100.0, 2)
+    tip = round(taxable * 0.10, 2)         # propina sugerida (10 %)
+    total = round(taxable + tax + tip, 2)
+    paid = 1000.0
     sale = {
-        "folio": 1,
-        "datetime": "2025-01-01 12:00:00",
+        "folio": 77,
+        "datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "order_type": "mesa",
         "payment_method": "efectivo",
-        "subtotal": 100.0,
-        "discount": 0,
-        "tax": 16.0,
-        "tip": 0,
-        "total": 116.0,
-        "paid": 200.0,
-        "change": 84.0,
-        "waiter": "Prueba",
+        "subtotal": subtotal,
+        "discount": discount,
+        "tax": tax,
+        "tip": tip,
+        "total": total,
+        "paid": paid,
+        "change": round(paid - total, 2),
+        "waiter": "Ana (demostración)",
         "customer": "",
     }
-    items = [
-        {"product_name": "Producto de ejemplo", "unit_price": 50.0, "quantity": 2,
-         "note": "Sin cebolla (prueba de nota)"},
-        {"product_name": "Bebida", "unit_price": 35.0, "quantity": 1, "note": ""},
-    ]
     return build_ticket_text(sale, items, settings, width)

@@ -56,8 +56,8 @@ sobre **SQLite**.
 ### 🔔 Notificaciones del almacén
 - Al abrir el programa y luego cada cierto tiempo (QTimer configurable,
   30 min por defecto) revisa stock bajo, por caducar/vencidos y sin movimiento.
-- **Campana con contador** en la barra superior que abre el centro de
-  notificaciones (lista de alertas con «Ver» → va directo al insumo,
+- **Campana con contador** en la barra lateral (encima del engrane de
+  Ajustes) que abre el centro de notificaciones (lista de alertas con «Ver» → va directo al insumo,
   «Posponer» 1 hora y «Atendida»).
 - Resumen automático al abrir («Hoy: 3 por caducar, 5 en stock bajo»).
 - Una alerta **atendida no vuelve** mientras la condición no cambie; una
@@ -84,8 +84,12 @@ sobre **SQLite**.
 - Para **editar Catálogo o Inventario** se pide la clave **una sola vez por
   sesión**, con indicador visible de «modo edición activo» y botón para
   bloquear de nuevo. Se bloquea automáticamente al cerrar el programa.
-- Menú **oculto con `Ctrl+P`** para cambiar la clave maestra (sin botón
-  visible que lo delate).
+- Menú **oculto con `Ctrl+P`** (sin botón visible que lo delate) con dos
+  opciones: cambiar la clave maestra y **borrar base de datos y órdenes** —
+  reinicia ventas, órdenes, sesiones de caja, kardex, lotes, listas de
+  compras y alertas atendidas (el stock vuelve a 0), conservando catálogo,
+  insumos y ajustes. Pide escribir «BORRAR» para confirmar y crea un
+  **respaldo de seguridad** antes de eliminar.
 - Límite de intentos fallidos con **retraso progresivo** (1s → 2s → 4s… máx 60s).
 
 > ¿Olvidaste la clave? No existe recuperación automática (por diseño). Para
@@ -140,12 +144,16 @@ sobre **SQLite**.
 - Ticket con datos del restaurante, folio, fecha, mesero, tipo de pedido,
   productos alineados (cantidad × nombre + importe), notas, subtotal,
   impuesto, propina, total, pago, cambio y pie personalizado.
-- Botones **«Imprimir prueba»** y **vista previa** antes de imprimir.
+- Botones **«Imprimir ticket de prueba (demo)»** —un ticket completo con
+  datos de demostración: partidas con notas, descuento, impuesto, propina,
+  pago en efectivo y cambio— y **vista previa** antes de imprimir.
 
 ### 🎨 Identidad visual
 - Usa los archivos propios `assets/logo.png` y `assets/icon.ico` (generados a
   partir del logo oficial). El splash de arranque muestra el logo centrado
-  sobre fondo limpio con **animación de aparición** (bootlogo).
+  sobre fondo limpio con **animación de aparición** (bootlogo). En el
+  primer arranque el bootlogo **se cierra solo** antes del asistente, para
+  que la ventana de configuración quede libre para escribir.
 
 ---
 
@@ -164,7 +172,7 @@ la clave maestra.
 ### Pruebas
 
 ```bash
-pytest                          # 78 pruebas unitarias (servicios, almacén, seguridad, BD, tickets, respaldos)
+pytest                          # 86 pruebas unitarias (servicios, almacén, seguridad, BD, tickets, respaldos)
 python scripts/smoke_test.py    # importa todos los módulos de la app
 ```
 

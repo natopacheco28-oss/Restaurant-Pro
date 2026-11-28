@@ -43,6 +43,7 @@ MODULES = [
     "app.ui.dialogs.inventory_dialogs",
     "app.ui.dialogs.shopping_dialogs",
     "app.ui.dialogs.notifications_dialog",
+    "app.ui.dialogs.hidden_menu_dialog",
     "app.ui.modules.pos_module",
     "app.ui.modules.catalog_module",
     "app.ui.modules.inventory_module",
