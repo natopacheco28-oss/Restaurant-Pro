@@ -24,11 +24,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.components.spinboxes import AppDoubleSpinBox
 from qfluentwidgets import (
     CaptionLabel,
     CheckBox,
     ComboBox,
-    DoubleSpinBox,
     InfoBar,
     InfoBarPosition,
     LineEdit,
@@ -207,17 +207,15 @@ class SettingsModule(ScrollArea):
         money_row.addWidget(self._currency_edit)
         money_row.addSpacing(24)
         money_row.addWidget(CaptionLabel("Impuesto (%):"))
-        self._tax_spin = DoubleSpinBox()
+        self._tax_spin = AppDoubleSpinBox()
         self._tax_spin.setRange(0.0, 100.0)
         self._tax_spin.setDecimals(2)
-        self._tax_spin.setFixedWidth(100)
         money_row.addWidget(self._tax_spin)
         money_row.addSpacing(24)
         money_row.addWidget(CaptionLabel("Propina sugerida (%):"))
-        self._tip_spin = DoubleSpinBox()
+        self._tip_spin = AppDoubleSpinBox()
         self._tip_spin.setRange(0.0, 50.0)
         self._tip_spin.setDecimals(1)
-        self._tip_spin.setFixedWidth(100)
         money_row.addWidget(self._tip_spin)
         money_row.addStretch(1)
         layout.addLayout(money_row)
@@ -360,27 +358,24 @@ class SettingsModule(ScrollArea):
 
         row1 = QHBoxLayout()
         row1.addWidget(CaptionLabel("Días de aviso de caducidad (por defecto):"))
-        self._warn_days_spin = DoubleSpinBox()
+        self._warn_days_spin = AppDoubleSpinBox()
         self._warn_days_spin.setRange(1, 365)
         self._warn_days_spin.setDecimals(0)
-        self._warn_days_spin.setFixedWidth(100)
         row1.addWidget(self._warn_days_spin)
         row1.addSpacing(24)
         row1.addWidget(CaptionLabel("Días para considerar «sin movimiento»:"))
-        self._stale_days_spin = DoubleSpinBox()
+        self._stale_days_spin = AppDoubleSpinBox()
         self._stale_days_spin.setRange(1, 365)
         self._stale_days_spin.setDecimals(0)
-        self._stale_days_spin.setFixedWidth(100)
         row1.addWidget(self._stale_days_spin)
         row1.addStretch(1)
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
         row2.addWidget(CaptionLabel("Revisar alertas cada (minutos):"))
-        self._interval_spin = DoubleSpinBox()
+        self._interval_spin = AppDoubleSpinBox()
         self._interval_spin.setRange(1, 720)
         self._interval_spin.setDecimals(0)
-        self._interval_spin.setFixedWidth(100)
         row2.addWidget(self._interval_spin)
         row2.addStretch(1)
         layout.addLayout(row2)
@@ -456,28 +451,49 @@ class SettingsModule(ScrollArea):
         self._notify("Tema aplicado", f"Modo {value}.")
 
     def _pick_accent(self) -> None:
-        color = self._accent_dialog()
+        """Abre el selector, valida el color y lo aplica sin reiniciar."""
+        from PySide6.QtGui import QColor
+
+        DEFAULT_ACCENT = "#ff7a1a"
+        current = str(self.ctx.settings.get("ui.accent", DEFAULT_ACCENT) or "")
+        initial = QColor(current) if QColor(current).isValid() else QColor(DEFAULT_ACCENT)
+
+        color = self._accent_dialog(initial)
         if color is None:
             return
-        setThemeColor(color)
+        try:
+            setThemeColor(QColor(color))
+        except Exception:
+            self._notify("Color de acento",
+                         "No se pudo aplicar el color elegido.", error=True)
+            return
         self.ctx.settings.set("ui.accent", color)
         self._notify("Color de acento actualizado", color)
 
-    @staticmethod
-    def _accent_dialog() -> Optional[str]:
+    def _accent_dialog(self, initial) -> Optional[str]:
+        """Selector de color Fluent; devuelve el hex elegido o None.
+
+        En qfluentwidgets 1.x el constructor es ColorDialog(color, title,
+        parent, enableAlpha): el título es OBLIGATORIO — omitirlo pasaba
+        None a QLabel y reventaba «Elegir color…» con un TypeError.
+        """
         try:
-            from qfluentwidgets import ColorDialog
             from PySide6.QtGui import QColor
 
-            dialog = ColorDialog(QColor("#ff7a1a"), None, enableAlpha=False)
+            from qfluentwidgets import ColorDialog
+
+            dialog = ColorDialog(initial, "Elegir color de acento",
+                                 self.window(), enableAlpha=False)
             if dialog.exec():
-                return dialog.color.name().upper()
+                chosen = QColor(dialog.color)
+                return chosen.name(QColor.HexRgb).upper() if chosen.isValid() else None
             return None
-        except ImportError:  # pragma: no cover
+        except ImportError:  # pragma: no cover — qfw muy antiguo
             from PySide6.QtWidgets import QColorDialog
 
-            color = QColorDialog.getColor()
-            return color.name().upper() if color.isValid() else None
+            color = QColorDialog.getColor(initial, self.window(),
+                                          "Elegir color de acento")
+            return color.name(QColor.HexRgb).upper() if color.isValid() else None
 
     # ==================================================================
     # 4. Datos y respaldos

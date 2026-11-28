@@ -24,11 +24,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.components.spinboxes import AppDoubleSpinBox
 from qfluentwidgets import (
     CaptionLabel,
     CheckBox,
     ComboBox,
-    DoubleSpinBox,
     InfoBar,
     InfoBarPosition,
     LineEdit,
@@ -111,7 +111,7 @@ class CheckoutDialog(MessageBoxBase):
         grid.addWidget(self._customer_edit, 2, 1)
 
         grid.addWidget(QLabel("Descuento:"), 3, 0)
-        self._discount_edit = DoubleSpinBox()
+        self._discount_edit = AppDoubleSpinBox()
         self._discount_edit.setRange(0.0, self._subtotal)
         self._discount_edit.setDecimals(2)
         self._discount_edit.setSingleStep(5.0)
@@ -126,7 +126,7 @@ class CheckoutDialog(MessageBoxBase):
         grid.addWidget(QLabel("Propina:"), 4, 0)
         tip_box = QHBoxLayout()
         self._tip_check = CheckBox(f"Incluir (sugerido {tip_suggested:g}%)")
-        self._tip_edit = DoubleSpinBox()
+        self._tip_edit = AppDoubleSpinBox()
         self._tip_edit.setRange(0.0, 999999.0)
         self._tip_edit.setDecimals(2)
         self._tip_edit.setEnabled(False)
@@ -135,7 +135,7 @@ class CheckoutDialog(MessageBoxBase):
         grid.addLayout(tip_box, 4, 1, 1, 2)
 
         grid.addWidget(QLabel("Pago recibido:"), 5, 0)
-        self._paid_edit = DoubleSpinBox()
+        self._paid_edit = AppDoubleSpinBox()
         self._paid_edit.setRange(0.0, 999999.0)
         self._paid_edit.setDecimals(2)
         self._paid_edit.setSingleStep(50.0)

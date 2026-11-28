@@ -17,7 +17,14 @@ a = Analysis(
     # El logo y el icono viajan dentro del paquete
     datas=[("assets", "assets")],
     # win32print/win32api solo se usan en Windows (impresión RAW ESC/POS)
-    hiddenimports=["win32print", "win32api", "win32con", "pywintypes"],
+    # QtPrintSupport queda incluido explícitamente (QPrinter/QPrintDialog)
+    hiddenimports=[
+        "win32print",
+        "win32api",
+        "win32con",
+        "pywintypes",
+        "PySide6.QtPrintSupport",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

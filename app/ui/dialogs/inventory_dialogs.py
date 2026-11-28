@@ -26,10 +26,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.components.spinboxes import AppDoubleSpinBox
 from qfluentwidgets import (
     CaptionLabel,
-    ComboBox,
-    DoubleSpinBox,
+    EditableComboBox,
     InfoBar,
     InfoBarPosition,
     LineEdit,
@@ -40,8 +40,6 @@ from qfluentwidgets import (
 from app.core.services.inventory_service import MERMA_REASONS, UNITS
 from app.ui.common import currency_of
 
-
-
 def getpass_user() -> str:
     """Usuario de Windows como autor por defecto del movimiento."""
     try:
@@ -50,7 +48,6 @@ def getpass_user() -> str:
         return getpass.getuser()
     except Exception:
         return ""
-
 
 def _make_date_picker():
     """CalendarPicker de qfluentwidgets (con respaldo QDateEdit)."""
@@ -65,7 +62,6 @@ def _make_date_picker():
         picker.setCalendarPopup(True)
         return picker
 
-
 def picker_date(picker) -> Optional[date]:
     """Lee la fecha del picker; None si está vacío."""
     value = picker.getDate()
@@ -73,12 +69,10 @@ def picker_date(picker) -> Optional[date]:
         return None
     return date(value.year(), value.month(), value.day())
 
-
 def picker_set_date(picker, value: Optional[date]) -> None:
     if value is None:
         return
     picker.setDate(QDate(value.year, value.month, value.day))
-
 
 class IngredientDialog(MessageBoxBase):
     """Alta/edición de insumo con mínimo, ideal, aviso de caducidad y proveedor."""
@@ -102,20 +96,20 @@ class IngredientDialog(MessageBoxBase):
             self._name_edit.setText(ingredient["name"])
         form.addRow("Nombre:", self._name_edit)
 
-        self._unit_combo = ComboBox()
-        self._unit_combo.setEditable(True)
+        # EditableComboBox permite escribir una unidad personalizada
+        self._unit_combo = EditableComboBox()
         for unit in UNITS:
             self._unit_combo.addItem(unit)
-        self._unit_combo.setCurrentText(ingredient["unit"] if ingredient else "pza")
+        self._unit_combo.setText(ingredient["unit"] if ingredient else "pza")
         form.addRow("Unidad:", self._unit_combo)
 
-        self._min_edit = DoubleSpinBox()
+        self._min_edit = AppDoubleSpinBox()
         self._min_edit.setRange(0.0, 999999.0)
         self._min_edit.setDecimals(3)
         self._min_edit.setValue(float(ingredient["min_stock"]) if ingredient else 0.0)
         form.addRow("Stock mínimo:", self._min_edit)
 
-        self._ideal_edit = DoubleSpinBox()
+        self._ideal_edit = AppDoubleSpinBox()
         self._ideal_edit.setRange(0.0, 999999.0)
         self._ideal_edit.setDecimals(3)
         self._ideal_edit.setValue(
@@ -123,7 +117,7 @@ class IngredientDialog(MessageBoxBase):
         self._ideal_edit.setToolTip("Stock ideal de reposición (0 = no se usa)")
         form.addRow("Stock ideal:", self._ideal_edit)
 
-        self._warn_edit = DoubleSpinBox()
+        self._warn_edit = AppDoubleSpinBox()
         self._warn_edit.setRange(0, 365)
         self._warn_edit.setDecimals(0)
         default_warn = int(ctx.settings.get("inventory.expiry_warning_days", 7) or 7)
@@ -134,7 +128,7 @@ class IngredientDialog(MessageBoxBase):
             f"(0 = usa el global: {default_warn} días)")
         form.addRow("Días de aviso:", self._warn_edit)
 
-        self._cost_edit = DoubleSpinBox()
+        self._cost_edit = AppDoubleSpinBox()
         self._cost_edit.setRange(0.0, 999999.0)
         self._cost_edit.setDecimals(2)
         self._cost_edit.setPrefix(f"{currency} ")
@@ -148,7 +142,7 @@ class IngredientDialog(MessageBoxBase):
         form.addRow("Proveedor:", self._supplier_edit)
 
         # Stock: editable solo al crear (queda registrado como entrada)
-        self._stock_edit = DoubleSpinBox()
+        self._stock_edit = AppDoubleSpinBox()
         self._stock_edit.setRange(0.0, 999999.0)
         self._stock_edit.setDecimals(3)
         if ingredient:
@@ -194,7 +188,6 @@ class IngredientDialog(MessageBoxBase):
                           position=InfoBarPosition.TOP, duration=4000)
             return False
 
-
 class MovementDialog(MessageBoxBase):
     """Registro de movimientos del kardex (entrada/salida/merma/ajuste).
 
@@ -232,7 +225,7 @@ class MovementDialog(MessageBoxBase):
             form.addWidget(CaptionLabel("Dejar el stock exactamente en:"))
         else:
             form.addWidget(CaptionLabel("Cantidad:"))
-        self._qty_edit = DoubleSpinBox()
+        self._qty_edit = AppDoubleSpinBox()
         self._qty_edit.setRange(0.001, 999999.0)
         self._qty_edit.setDecimals(3)
         self._qty_edit.setValue(default_quantity)
@@ -242,7 +235,7 @@ class MovementDialog(MessageBoxBase):
         form.addWidget(CaptionLabel(ingredient["unit"]))
 
         if movement_type == "entrada":
-            self._cost_edit = DoubleSpinBox()
+            self._cost_edit = AppDoubleSpinBox()
             self._cost_edit.setRange(0.0, 999999.0)
             self._cost_edit.setDecimals(2)
             self._cost_edit.setPrefix(f"{currency} ")
@@ -271,15 +264,13 @@ class MovementDialog(MessageBoxBase):
 
         if movement_type in ("salida", "merma", "ajuste"):
             if movement_type == "merma":
-                self._reason_combo = ComboBox()
-                self._reason_combo.setEditable(True)
+                self._reason_combo = EditableComboBox()
                 for reason in MERMA_REASONS:
                     self._reason_combo.addItem(reason)
-                self._reason_combo.setCurrentText(MERMA_REASONS[0])
+                self._reason_combo.setText(MERMA_REASONS[0])
                 form.addRow("Motivo:", self._reason_combo)
             else:
-                self._reason_combo = ComboBox()
-                self._reason_combo.setEditable(True)
+                self._reason_combo = EditableComboBox()
                 for reason in ("Consumo interno", "Promoción", "Cortesía",
                                "Corrección de conteo", "Otro"):
                     self._reason_combo.addItem(reason)
