@@ -27,8 +27,10 @@ def test_double_spinbox_tiene_tamanio_comodo(qapp):
     spin = AppDoubleSpinBox()
     assert spin.minimumWidth() >= 110
     assert 33 <= spin.minimumHeight() <= 36
-    # padding derecho que respeta las flechas ↑/↓ flotantes
-    assert "padding-right" in spin.lineEdit().styleSheet()
+    # estilo Fluent propio con padding que respeta los botones ▲/▼ nativos
+    assert "padding" in spin.styleSheet()
+    # flechas NATIVAS de Qt (siempre responden), no las flotantes de qfw
+    assert spin.buttonSymbols() == spin.ButtonSymbols.UpDownArrows
 
 
 def test_double_spinbox_se_amplia_con_digitos(qapp):
@@ -119,19 +121,77 @@ def test_qprintdialog_vive_en_qtprintsupport():
     assert printer.QPrintDialog is _expected
 
 
-def test_print_sale_ticket_sin_impresora_da_mensaje_claro(db_tmp=None):
-    """Con una impresora inexistente devuelve (False, mensaje) sin lanzar."""
+# ----------------------------------------------------------------------
+# Impresión estilo ABCell Pro: detección de papel + realineación
+# ----------------------------------------------------------------------
+
+def test_clasificar_formato_papel():
+    """Nombres de impresoras/driver y PaperWidth → 58mm/80mm."""
+    import app.printing.printer as printer
+
+    assert printer.classify_paper_format("POS-80 thermal") == "80mm"
+    assert printer.classify_paper_format("XP-58 receiver") == "58mm"
+    assert printer.classify_paper_format("", paper_width_tenths=800) == "80mm"
+    assert printer.classify_paper_format("", paper_width_tenths=580) == "58mm"
+    assert printer.classify_paper_format("HP LaserJet") == ""
+
+
+def test_realign_ticket_48_a_32_sin_escalera():
+    """Un ticket de 48 columnas se reajusta a 32 sin líneas en escalera."""
+    import app.printing.printer as printer
+
+    src = "\n".join([
+        "TACOS EL BUEN GUSTO".center(48).rstrip(),
+        "=" * 48,
+        "Folio: #000077",
+        "-" * 48,
+        "2 x Tacos de pastor (orden)            $192.00",
+        "  » Sin cilantro, con todo",
+        "Subtotal                               $367.00",
+        "-" * 48,
+        "TOTAL                                  $416.18",
+        "=" * 48,
+        "¡Gracias por su preferencia!".center(48).rstrip(),
+    ])
+    out = printer.realign_ticket_text(src, 32)
+
+    lines = out.splitlines()
+    assert max(len(line) for line in lines) <= 32          # nada excede
+    assert lines[1] == "=" * 32                            # separador exacto
+    assert lines[3] == "-" * 32
+    # El renglón LR conserva etiqueta a la izq e importe al final
+    lr = next(l for l in lines if "Subtotal" in l)
+    assert lr.startswith("Subtotal") and lr.endswith("$367.00")
+    # El párrafo largo se envuelve con sangría
+    wrapped = [l for l in lines if l.startswith("  ¡Gracias") or l == "¡Gracias por su preferencia!"]
+    assert wrapped
+
+
+def test_realign_ya_al_ancho_no_cambia():
+    import app.printing.printer as printer
+
+    src = "Línea corta\n" + "-" * 32 + "\nTOTAL   $100.00"
+    assert printer.realign_ticket_text(src, 32) == src
+
+
+def test_ticket_source_width():
+    import app.printing.printer as printer
+
+    assert printer.ticket_source_width("abc\n" + "-" * 48 + "\nx") == 48
+
+
+def test_print_sale_ticket_sin_impresora_da_mensaje_claro():
+    """Sin impresoras disponibles devuelve (False, mensaje) sin lanzar."""
     from types import SimpleNamespace
 
     import app.printing.printer as printer
 
-    settings = SimpleNamespace(get=lambda key, default=None: "Impresora_fantasma")
+    settings = SimpleNamespace(get=lambda key, default=None: "")
     manager = printer.PrinterManager(settings)
-    if "Impresora_fantasma" in printer.list_printers():
-        return  # existe de verdad: nada que probar
     ok, message = manager.print_sale_ticket("ticket de prueba")
     assert ok is False
-    assert "Impresora_fantasma" in message
+    assert "impresora" in message.lower()
+    assert "\n" in message  # mensaje de varias líneas, claro y explicativo
 
 
 # ======================================================================

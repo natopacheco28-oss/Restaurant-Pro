@@ -39,14 +39,17 @@ def _center(text: str, width: int) -> str:
 
 
 def _split_lr(left: str, right: str, width: int) -> str:
-    """Texto a la izquierda + importe a la derecha, truncando si no cabe."""
+    """Texto a la izquierda + importe a la derecha.
+
+    Si el renglón completo no cabe, NO se trunca: se devuelve con su ancho
+    natural y el ajuste final (`realign_ticket_text`) reparte el renglón —
+    nombre completo e importe alineado a la derecha en su propio renglón.
+    """
     right = right.strip()
     left = left.strip()
     space = width - len(right)
-    if space <= 0:
-        return (left + " " + right)[:width]
-    if len(left) > space - 1:
-        left = left[: space - 1]
+    if space <= 0 or len(left) > space - 1:
+        return f"{left} {right}".rstrip()
     return left + " " * (space - len(left)) + right
 
 
@@ -135,8 +138,10 @@ def build_ticket_text(
                        currency)
         lines.append(_split_lr(f"{qty} x {name}", amount, width))
         note = (item.get("note") or "").strip()
-        for ln in _wrap(f"» {note}", width - 2):
-            lines.append(f"  {ln}")
+        if note:
+            # Sin nota NO se imprime el «»» suelto (salía un renglón vacío)
+            for ln in _wrap(f"» {note}", width - 2):
+                lines.append(f"  {ln}")
 
     lines.append(SEP_THIN * width)
 
@@ -174,7 +179,12 @@ def build_ticket_text(
         for ln in _wrap(policies, width):
             lines.append(_center(ln, width))
 
-    return "\n".join(lines)
+    # Ajuste final al ancho del papel: si algún renglón excede (nombre de
+    # partida largo, importe), el realineador lo reparte — nombres completos
+    # e importes alineados a la derecha, sin recortes ni "escalera".
+    from app.printing.printer import realign_ticket_text
+
+    return realign_ticket_text("\n".join(lines), width)
 
 
 def build_test_ticket_text(settings: Any, width: Optional[int] = None) -> str:
