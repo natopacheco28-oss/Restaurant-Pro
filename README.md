@@ -144,9 +144,11 @@ sobre **SQLite**.
 - Ticket con datos del restaurante, folio, fecha, mesero, tipo de pedido,
   productos alineados (cantidad × nombre + importe), notas, subtotal,
   impuesto, propina, total, pago, cambio y pie personalizado.
-- Botones **«Imprimir ticket de prueba (demo)»** —un ticket completo con
-  datos de demostración: partidas con notas, descuento, impuesto, propina,
-  pago en efectivo y cambio— y **vista previa** antes de imprimir.
+- Impresión **directa y sin ventanas** (impresora configurada →
+  predeterminada de Windows → primera disponible), con **detección
+  automática de papel 58/80 mm** y realineado del ticket al ancho real
+  (sin recortes ni impresión «en escalera»). Botón **«Imprimir ticket de
+  prueba (demo)»** con datos de demostración y **vista previa**.
 
 ### 🎨 Identidad visual
 - Usa los archivos propios `assets/logo.png` y `assets/icon.ico` (generados a

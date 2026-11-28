@@ -15,8 +15,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-# Ancho imprimible en puntos por tamaño de papel
-PRINTER_DOTS = {32: 384, 48: 576}  # 32 caracteres → 58 mm · 48 → 80 mm
+# Ancho imprimible en puntos por tamaño de papel:
+# 32 caracteres → 58 mm · 44 → 80 mm (detectado) · 48 → 80 mm configurado
+PRINTER_DOTS = {32: 384, 44: 512, 48: 576}
 
 ESC = b"\x1b"
 GS = b"\x1d"
